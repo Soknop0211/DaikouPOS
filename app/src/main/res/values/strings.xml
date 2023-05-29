@@ -1,3 +1,15 @@
 <resources>
     <string name="app_name">DAIKOU ERP</string>
+    <string name="message_bind_ecr_service">Failed to bind ECR Service</string>
+    <string name="message_select_connect">Please disconnect first, before selecting the communication mode</string>
+
+    <string name="message_bluetooth_disable">Please turn on the device bluetooth first</string>
+    <string name="message_bluetooth_not_support">The device does not support bluetooth</string>
+    <string name="message_bluetooth_not_find_bonded">No paired bluetooth found</string>
+    <string name="ok">OK</string>
+    <string name="dialog_select_bluetooth">Please select a bluetooth device</string>
+
+    <string name="connected">connected</string>
+    <string name="connecting">connecting</string>
+    <string name="disconnected">disconnected</string>
 </resources>
