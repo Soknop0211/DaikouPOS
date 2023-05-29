@@ -14,7 +14,7 @@ import com.eazy.daikoupos.utils.SunmiPrintHelper
 open class BaseActivity : AppCompatActivity() {
 
     var handler: Handler? = null
-    var connectionType = "usb"
+    var connectionType = "bluetooth"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

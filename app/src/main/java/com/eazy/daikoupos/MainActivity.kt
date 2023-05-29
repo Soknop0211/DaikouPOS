@@ -1,19 +1,14 @@
 package com.eazy.daikoupos
 
 import android.annotation.SuppressLint
-import android.app.AlertDialog
-import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.text.TextUtils
-import android.view.View
 import android.webkit.*
-import android.widget.EditText
-import android.widget.RadioGroup
-import com.afollestad.materialdialogs.MaterialDialog
-import com.afollestad.materialdialogs.lifecycle.lifecycleOwner
-import com.afollestad.materialdialogs.list.listItems
+import cn.pedant.SweetAlert.SweetAlertDialog
 import com.eazy.daikoupos.databinding.ActivityMainBinding
 import com.eazy.daikoupos.ecr.ECRHelper
 import com.eazy.daikoupos.utils.SunmiPrintHelper
@@ -47,12 +42,12 @@ class MainActivity : BaseActivity() {
         initAction()
 
         // Init  Connect P2 for payment
-        checkConnectionDevice(connectionType)
+        checkConnectionDevice()
 
         initECR()
 
         binding.btnClick.setOnClickListener {
-            sendPaymentToP2("card")
+            sendPaymentToP2()
         }
     }
 
@@ -127,13 +122,16 @@ class MainActivity : BaseActivity() {
         sunmiPrintHelper.feedPaper()
     }
 
+    @SuppressLint("MissingPermission")
     private fun connectWithSATHAPANA() {
         if (!BaseApp.connected){
             val bundle = Bundle()
             bundle.putString(ECRConstant.Configuration.MODE, mode)
             bundle.putString(ECRConstant.Configuration.TYPE, if (BaseApp.server) ECRConstant.Type.MASTER else ECRConstant.Type.SLAVE)
+
             if (mode == ECRConstant.Mode.Bluetooth) {
-                val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+                val bluetoothManager = this.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+                val bluetoothAdapter = bluetoothManager.adapter
                 if (bluetoothAdapter != null && bluetoothAdapter.isEnabled) {
                     val bluetoothDevice = bluetoothAdapter.bondedDevices
                     for (device in bluetoothDevice) {
@@ -144,6 +142,7 @@ class MainActivity : BaseActivity() {
                     showToast(R.string.message_bluetooth_not_support)
                 }
             }
+
             val ecrHelper = ECRHelper
             ecrHelper.connect(bundle)
         }
@@ -180,10 +179,8 @@ class MainActivity : BaseActivity() {
         }
         ECRHelper.onECRReceive = { bytes ->
             val text = String(bytes, StandardCharsets.UTF_8)
-            Utils.logDebug(BaseApp.TAG, text)
+            onCallResponsePaymentToWeb(text)
         }
-
-        ECRHelper.onBindSuccess
 
         ECRHelper.bindECRService()
     }
@@ -193,50 +190,13 @@ class MainActivity : BaseActivity() {
         Utils.logDebug(BaseApp.TAG, text)
     }
 
-    private fun showDialog(bundle: Bundle) {
-//        val view = View.inflate(baseContext, R.layout.dialog_content, null)
-//        val ip = view.findViewById<EditText>(R.id.ip)
-//        val port = view.findViewById<EditText>(R.id.port)
-//        if (BaseApp.server) {
-//            ip.visibility = View.GONE
-//        }
-//        AlertDialog.Builder(this)
-//            .setTitle("Input Data")
-//            .setView(view)
-//            .setPositiveButton(
-//                "Confirm"
-//            ) { _, _ ->
-//                if (BaseApp.server) {
-//                    if (TextUtils.isEmpty(port.text.toString())) {
-//                        showToast("Please input port")
-//                        return@setPositiveButton
-//                    }
-//                } else {
-//                    if (TextUtils.isEmpty(port.text.toString()) || TextUtils.isEmpty(ip.text.toString())) {
-//                        showToast("Please input port and ip")
-//                        return@setPositiveButton
-//                    }
-//                }
-//                bundle.putInt(
-//                    ECRConstant.Configuration.WIFI_PORT,
-//                    port.text.toString().toInt()
-//                )
-//                bundle.putString(ECRConstant.Configuration.WIFI_ADDRESS, ip.text.toString())
-//                binding.connectText.text = getString(R.string.connecting)
-//                binding.connectText.setOnClickListener(null)
-//                binding.connectText.alpha = 0.5f
-//                ECRHelper.connect(bundle)
-//            }.show()
-
-    }
-
-    private fun checkConnectionDevice(action : String) {
+    private fun checkConnectionDevice() {
         if (BaseApp.connected) {
             showToast(R.string.message_select_connect)
             return
         }
 
-        when (action) {
+        when (connectionType) {
             "bluetooth" -> {
                 mode = ECRConstant.Mode.Bluetooth
             }
@@ -249,16 +209,49 @@ class MainActivity : BaseActivity() {
         }
     }
 
-    private fun sendPaymentToP2(action : String) {
+    private fun sendPaymentToP2() {
         if (!BaseApp.connected) {
             return
         }
 
         Executors.newCachedThreadPool().execute {
-            val text = if (action == "card") "CMD:C200|AMT:10.39|CCY:USD|TRXID:234567654|TILLID:65434567898" else "CMD:C100|AMT:10.39|CCY:USD|TRXID:5678987|TILLID:5678976"
+            val text = "CMD:C200|AMT:10.39|CCY:USD|TRXID:234567654|TILLID:65434567898" // test : text will get from web invoice
             val bytes = text.toByteArray(StandardCharsets.UTF_8)
             Logger.e(BaseApp.TAG, "size: $bytes.size")
             ECRHelper.send(bytes)
         }
     }
+
+    private fun onCallResponsePaymentToWeb(text : String) {
+        var onResponse = text
+        when {
+            text.contains("RESCODE:000") -> {
+                onResponse = "Payment Successfully !"
+            }
+            text.contains("RESCODE:099") -> {
+                onResponse = "Payment Decline !"
+            }
+            text.contains("RESCODE:098") -> {
+                onResponse = "Payment Error !"
+            }
+        }
+
+        showToast(onResponse)
+    }
+
+    private fun showSuccess(context: Context?, text: String?) {
+        var mText = text
+        try {
+            mText = mText?.replace("\r\n".toRegex(), "<br />") ?: ""
+            val alertDialog: SweetAlertDialog =
+                SweetAlertDialog(context, SweetAlertDialog.SUCCESS_TYPE)
+                    .setContentText(mText)
+                    .setConfirmClickListener { sweetAlertDialog -> sweetAlertDialog!!.dismiss() }
+            alertDialog.setCanceledOnTouchOutside(false)
+            alertDialog.show()
+        } catch (ex: Exception) {
+            ex.printStackTrace()
+        }
+    }
+
 }

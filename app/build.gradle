@@ -50,6 +50,5 @@ dependencies {
     // implementation 'com.sunmi:sunmiui:1.1.27'
 
     implementation files("libs/ecr-service-lib-1.1.17_release.aar")
-    implementation 'com.afollestad.material-dialogs:core:3.3.0'
-    implementation 'com.afollestad.material-dialogs:lifecycle:3.3.0'
+    implementation 'com.github.f0ris.sweetalert:library:1.6.2'
 }
