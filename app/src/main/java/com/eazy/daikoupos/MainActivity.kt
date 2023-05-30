@@ -1,7 +1,6 @@
 package com.eazy.daikoupos
 
 import android.annotation.SuppressLint
-import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.graphics.Bitmap
@@ -12,9 +11,11 @@ import android.webkit.*
 import cn.pedant.SweetAlert.SweetAlertDialog
 import com.eazy.daikoupos.databinding.ActivityMainBinding
 import com.eazy.daikoupos.ecr.ECRHelper
+import com.eazy.daikoupos.model.ResponseData
 import com.eazy.daikoupos.utils.SunmiPrintHelper
 import com.eazy.daikoupos.utils.Utils
 import com.eazy.daikoupos.utils.payment.Logger
+import com.google.gson.Gson
 import com.pos.connection.bridge.binder.ECRConstant
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.Executors
@@ -47,9 +48,6 @@ class MainActivity : BaseActivity() {
 
         initECR()
 
-        binding.btnClick.setOnClickListener {
-            sendPaymentToP2()
-        }
     }
 
     private fun initView() {
@@ -82,7 +80,14 @@ class MainActivity : BaseActivity() {
         fun updateFromAndroidPrint(data: String) {
             Utils.logDebug("jeeeeeeeeeeeeeeeeeeee", data)
             if (!TextUtils.isEmpty(data) && data != "") {
-                displayBitmap(data)
+                val results: ResponseData? = Gson().fromJson(data, ResponseData::class.java)
+                if (results != null && !TextUtils.isEmpty(results.mType)) {
+                    if (results.mType == "card_payment") {
+                        results.mData?.mTotalPayment?.let { sendPaymentToP2(it) }
+                    } else if (results.mType == "print_invoice") {
+                        results.mData?.mBase64?.let { displayBitmap(it) }
+                    }
+                }
             }
         }
     }
@@ -212,13 +217,13 @@ class MainActivity : BaseActivity() {
         }
     }
 
-    private fun sendPaymentToP2() {
+    private fun sendPaymentToP2(totalAmount : String) {
         if (!BaseApp.connected) {
             return
         }
 
         Executors.newCachedThreadPool().execute {
-            val text = "CMD:C200|AMT:10.00|CCY:USD|TRXID:23874567654|TILLID:654345678987668" // test : text will get from web invoice
+            val text = "CMD:C200|AMT:${totalAmount}|CCY:USD|TRXID:23874567654|TILLID:654345678987668" // test : text will get from web invoice
             val bytes = text.toByteArray(StandardCharsets.UTF_8)
             Logger.e(BaseApp.TAG, "size: $bytes.size")
             ECRHelper.send(bytes)
@@ -256,5 +261,7 @@ class MainActivity : BaseActivity() {
             ex.printStackTrace()
         }
     }
+
+
 
 }

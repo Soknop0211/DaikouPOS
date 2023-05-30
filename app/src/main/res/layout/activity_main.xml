@@ -12,10 +12,11 @@
         android:layout_height="match_parent" />
 
     <Button
+        android:visibility="gone"
         android:id="@+id/btnClick"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Send"
+        android:text="Connect"
         android:layout_alignParentEnd="true"
         android:layout_margin="5dp"
         android:layout_alignParentBottom="true"/>
