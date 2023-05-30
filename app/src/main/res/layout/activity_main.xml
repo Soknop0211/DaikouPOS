@@ -17,6 +17,7 @@
         android:layout_height="wrap_content"
         android:text="Send"
         android:layout_alignParentEnd="true"
+        android:layout_margin="5dp"
         android:layout_alignParentBottom="true"/>
 
 </RelativeLayout>

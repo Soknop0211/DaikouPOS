@@ -1,6 +1,7 @@
 package com.eazy.daikoupos
 
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.graphics.Bitmap
@@ -115,6 +116,7 @@ class MainActivity : BaseActivity() {
         val sunmiPrintHelper = SunmiPrintHelper.getInstance()
         sunmiPrintHelper.printBitmap(bitmap, 0)
         if (sunmiPrintHelper.sunmiPrinterService != null) {
+            sunmiPrintHelper.sunmiPrinterService.lineWrap(0, null)
             sunmiPrintHelper.sunmiPrinterService.lineWrap(1, null)
             sunmiPrintHelper.sunmiPrinterService.lineWrap(0, null)
             sunmiPrintHelper.sunmiPrinterService.cutPaper( null)
@@ -132,6 +134,7 @@ class MainActivity : BaseActivity() {
             if (mode == ECRConstant.Mode.Bluetooth) {
                 val bluetoothManager = this.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
                 val bluetoothAdapter = bluetoothManager.adapter
+                // val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
                 if (bluetoothAdapter != null && bluetoothAdapter.isEnabled) {
                     val bluetoothDevice = bluetoothAdapter.bondedDevices
                     for (device in bluetoothDevice) {
@@ -215,7 +218,7 @@ class MainActivity : BaseActivity() {
         }
 
         Executors.newCachedThreadPool().execute {
-            val text = "CMD:C200|AMT:10.39|CCY:USD|TRXID:234567654|TILLID:65434567898" // test : text will get from web invoice
+            val text = "CMD:C200|AMT:10.00|CCY:USD|TRXID:23874567654|TILLID:654345678987668" // test : text will get from web invoice
             val bytes = text.toByteArray(StandardCharsets.UTF_8)
             Logger.e(BaseApp.TAG, "size: $bytes.size")
             ECRHelper.send(bytes)
