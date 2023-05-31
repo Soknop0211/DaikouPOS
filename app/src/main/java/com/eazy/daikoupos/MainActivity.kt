@@ -7,9 +7,14 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.text.TextUtils
+import android.view.LayoutInflater
+import android.view.View
 import android.webkit.*
+import androidx.appcompat.app.AlertDialog
+import androidx.recyclerview.widget.LinearLayoutManager
 import cn.pedant.SweetAlert.SweetAlertDialog
 import com.eazy.daikoupos.databinding.ActivityMainBinding
+import com.eazy.daikoupos.databinding.SelectConnectionModeLayoutBinding
 import com.eazy.daikoupos.ecr.ECRHelper
 import com.eazy.daikoupos.model.ResponseData
 import com.eazy.daikoupos.utils.SunmiPrintHelper
@@ -20,14 +25,35 @@ import com.pos.connection.bridge.binder.ECRConstant
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.Executors
 
+
 class MainActivity : BaseActivity() {
 
     private var getLinkUrl = "https://pos.daikou.asia"
     private var webView: WebView? = null
-    private var mode = ""
+
+    private val bluetoothList = HashMap<String, String>()
+    private var bluetoothAddress = ""
 
     companion object {
         private const val JAVASCRIPT_OBJ = "Android"
+        private var mode = ""
+        fun checkConnectionDevice(connectionType : String) {
+            if (BaseApp.connected) {
+                return
+            }
+
+            when (connectionType) {
+                "bluetooth" -> {
+                    mode = ECRConstant.Mode.Bluetooth
+                }
+                "wifi" -> {
+                    mode = ECRConstant.Mode.WIFI
+                }
+                "usb" -> {
+                    mode = ECRConstant.Mode.USB
+                }
+            }
+        }
     }
 
     private var bitmap: Bitmap? = null
@@ -42,9 +68,6 @@ class MainActivity : BaseActivity() {
         initView()
 
         initAction()
-
-        // Init  Connect P2 for payment
-        checkConnectionDevice()
 
         initECR()
 
@@ -82,10 +105,32 @@ class MainActivity : BaseActivity() {
             if (!TextUtils.isEmpty(data) && data != "") {
                 val results: ResponseData? = Gson().fromJson(data, ResponseData::class.java)
                 if (results != null && !TextUtils.isEmpty(results.mType)) {
-                    if (results.mType == "card_payment") {
-                        results.mData?.mTotalPayment?.let { sendPaymentToP2(it) }
-                    } else if (results.mType == "print_invoice") {
-                        results.mData?.mBase64?.let { displayBitmap(it) }
+                    when (results.mType) {
+                        "card_payment" -> {
+                            results.mData?.mTotalPayment?.let { sendPaymentToP2(it) }
+                        }
+                        "print_invoice" -> {
+                            results.mData?.mBase64?.let { displayBitmap(it) }
+                        }
+                        "connection" -> {
+                            val mFragment = SelectDeviceModeFragment()
+                            mFragment.initListener(object : SelectDeviceModeFragment.OnCallBackListener {
+                                override fun onCallBack(bluetoothAdd: String) {
+                                    bluetoothAddress = bluetoothAdd
+                                    if (connectionType == "bluetooth") {
+                                        if (bluetoothAddress != ""){
+                                            connectWithSATHAPANA()
+                                        } else {
+                                            showToast("Please select bluetooth address connection .")
+                                        }
+                                    } else {
+                                        connectWithSATHAPANA()
+                                    }
+                                }
+
+                            })
+                            mFragment.show(supportFragmentManager, "mFragment")
+                        }
                     }
                 }
             }
@@ -137,18 +182,8 @@ class MainActivity : BaseActivity() {
             bundle.putString(ECRConstant.Configuration.TYPE, if (BaseApp.server) ECRConstant.Type.MASTER else ECRConstant.Type.SLAVE)
 
             if (mode == ECRConstant.Mode.Bluetooth) {
-                val bluetoothManager = this.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-                val bluetoothAdapter = bluetoothManager.adapter
-                // val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-                if (bluetoothAdapter != null && bluetoothAdapter.isEnabled) {
-                    val bluetoothDevice = bluetoothAdapter.bondedDevices
-                    for (device in bluetoothDevice) {
-                        if (device.address == "00:11:22:33:44:55") continue
-                        bundle.putString(ECRConstant.Configuration.BLUETOOTH_MAC_ADDRESS, device.address)
-                    }
-                } else {
-                    showToast(R.string.message_bluetooth_not_support)
-                }
+                Logger.e(BaseApp.TAG, "bluetoothAddress: $bluetoothAddress")
+                bundle.putString(ECRConstant.Configuration.BLUETOOTH_MAC_ADDRESS, bluetoothAddress)
             }
 
             val ecrHelper = ECRHelper
@@ -158,8 +193,6 @@ class MainActivity : BaseActivity() {
 
     private fun initECR() {
         ECRHelper.onBindSuccess = {
-            connectWithSATHAPANA()
-
             ECRHelper.registerECRListener()
         }
         ECRHelper.onBindFailure = {
@@ -198,27 +231,9 @@ class MainActivity : BaseActivity() {
         Utils.logDebug(BaseApp.TAG, text)
     }
 
-    private fun checkConnectionDevice() {
-        if (BaseApp.connected) {
-            showToast(R.string.message_select_connect)
-            return
-        }
-
-        when (connectionType) {
-            "bluetooth" -> {
-                mode = ECRConstant.Mode.Bluetooth
-            }
-            "wifi" -> {
-                mode = ECRConstant.Mode.WIFI
-            }
-            "usb" -> {
-                mode = ECRConstant.Mode.USB
-            }
-        }
-    }
-
     private fun sendPaymentToP2(totalAmount : String) {
         if (!BaseApp.connected) {
+            showToast("Please connect device mode !")
             return
         }
 
@@ -237,7 +252,7 @@ class MainActivity : BaseActivity() {
                 onResponse = "Payment Successfully !"
             }
             text.contains("RESCODE:099") -> {
-                onResponse = "Payment Decline !"
+                onResponse = "Payment Failed !"
             }
             text.contains("RESCODE:098") -> {
                 onResponse = "Payment Error !"
@@ -247,21 +262,96 @@ class MainActivity : BaseActivity() {
         showToast(onResponse)
     }
 
-    private fun showSuccess(context: Context?, text: String?) {
-        var mText = text
-        try {
-            mText = mText?.replace("\r\n".toRegex(), "<br />") ?: ""
-            val alertDialog: SweetAlertDialog =
-                SweetAlertDialog(context, SweetAlertDialog.SUCCESS_TYPE)
-                    .setContentText(mText)
-                    .setConfirmClickListener { sweetAlertDialog -> sweetAlertDialog!!.dismiss() }
-            alertDialog.setCanceledOnTouchOutside(false)
-            alertDialog.show()
-        } catch (ex: Exception) {
-            ex.printStackTrace()
+    private fun customOption(mContext : Context) {
+        val binding: SelectConnectionModeLayoutBinding = SelectConnectionModeLayoutBinding.inflate(layoutInflater)
+        val dialog = AlertDialog.Builder(mContext)
+        dialog.setView(binding.root)
+        dialog.setCancelable(false)
+        val alertDialog = dialog.show()
+
+        val mList = switchBluetooth()
+        binding.recyclerView.visibility = View.VISIBLE
+        binding.recyclerView.apply {
+            layoutManager = LinearLayoutManager(mContext)
+            adapter = BluetoothItemAdapter(bluetoothAddress, mList, object : BluetoothItemAdapter.OnClickCallBackLister {
+                @SuppressLint("NotifyDataSetChanged")
+                override fun onClickCallBack(bluetooth: String?) {
+                    bluetoothAddress = bluetoothList[bluetooth] ?: ""
+                    binding.recyclerView.adapter!!.notifyDataSetChanged()
+                }
+            })
         }
+
+        connectionType = "bluetooth"
+        checkConnectionDevice(connectionType)
+        binding.rOption.setOnCheckedChangeListener { _, checkedId ->
+            if (checkedId == R.id.rBluetooth) {
+                connectionType = "bluetooth"
+                binding.recyclerView.visibility = View.VISIBLE
+            } else if (checkedId == R.id.rUSB) {
+                connectionType = "usb"
+                binding.recyclerView.visibility = View.GONE
+            }
+            checkConnectionDevice(connectionType)
+        }
+
+        binding.txtOk.setOnClickListener {
+            if (connectionType == "bluetooth") {
+                if (bluetoothAddress != ""){
+                    connectWithSATHAPANA()
+                    alertDialog.dismiss()
+                } else {
+                    showToast("Please select device connection")
+                }
+            } else {
+                connectWithSATHAPANA()
+                alertDialog.dismiss()
+            }
+        }
+
+        binding.txtCancel.setOnClickListener {
+            alertDialog.dismiss()
+        }
+
     }
 
+    @SuppressLint("MissingPermission")
+    private fun switchBluetooth() : List<String> {
+        val bluetoothManager = this.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        val bluetoothAdapter = bluetoothManager.adapter
+        if (bluetoothAdapter != null) {
+            if (bluetoothAdapter.isEnabled) {
+                bluetoothList.clear()
+                val bondedDevices = bluetoothAdapter.bondedDevices
+                if (bondedDevices != null && bondedDevices.size > 0) {
+                    for (bluetoothDevice in bondedDevices) {
+                        val name = bluetoothDevice.name
+                        val address = bluetoothDevice.address
+                        Logger.e(BaseApp.TAG, "name: $name")
+                        Logger.e(BaseApp.TAG, "address: $address")
+                        if (address == "00:11:22:33:44:55") continue
+                        bluetoothList["$name - $address"] = address
+                    }
+                }
+                if (bluetoothList.size <= 0) {
+                    showToast(R.string.message_bluetooth_not_find_bonded)
+                }
+            } else {
+                showToast(R.string.message_bluetooth_disable)
+            }
+        } else {
+            showToast(R.string.message_bluetooth_not_support)
+        }
+        return bluetoothList.keys.toList()
+    }
 
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (webView!!.canGoBack()) {
+            webView!!.goBack()
+        } else {
+            finish()
+        }
+    }
 
 }
