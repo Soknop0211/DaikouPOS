@@ -28,7 +28,12 @@ object ECRHelper {
     var onECRReceive: (bytes: ByteArray) -> Unit = { }
 
     fun connect(bundle: Bundle) {
-        call { anyExecute(ecrService) { connect(bundle, ecrConnection) } }
+        call {
+            anyExecute(ecrService)
+            {
+                connect(bundle, ecrConnection)
+            }
+        }
     }
 
     fun disconnect() {

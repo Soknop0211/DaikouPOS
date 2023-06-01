@@ -1,28 +1,45 @@
 package com.eazy.daikoupos
 
 import android.annotation.SuppressLint
-import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.TextUtils
-import android.view.LayoutInflater
-import android.view.View
 import android.webkit.*
-import androidx.appcompat.app.AlertDialog
-import androidx.recyclerview.widget.LinearLayoutManager
 import cn.pedant.SweetAlert.SweetAlertDialog
+import com.eazy.daikoupos.BaseApp.Companion.connectionType
 import com.eazy.daikoupos.databinding.ActivityMainBinding
-import com.eazy.daikoupos.databinding.SelectConnectionModeLayoutBinding
 import com.eazy.daikoupos.ecr.ECRHelper
+import com.eazy.daikoupos.extension.validateSt
 import com.eazy.daikoupos.model.ResponseData
+import com.eazy.daikoupos.utils.ShowAlertDialog
 import com.eazy.daikoupos.utils.SunmiPrintHelper
 import com.eazy.daikoupos.utils.Utils
 import com.eazy.daikoupos.utils.payment.Logger
 import com.google.gson.Gson
+import com.google.gson.JsonObject
+import com.mylibrary.KESSMerchantService
+import com.mylibrary.network.Credential.apiSecretKey
+import com.mylibrary.network.Credential.clientId
+import com.mylibrary.network.Credential.clientSecret
+import com.mylibrary.network.Credential.currency
+import com.mylibrary.network.Credential.grantType
+import com.mylibrary.network.Credential.methodDesc
+import com.mylibrary.network.Credential.password
+import com.mylibrary.network.Credential.sellerCode
+import com.mylibrary.network.Credential.servicePartnerConfirmFunTransfer
+import com.mylibrary.network.Credential.serviceType
+import com.mylibrary.network.Credential.signType
+import com.mylibrary.network.Credential.terminalType
+import com.mylibrary.network.Credential.tillId
+import com.mylibrary.network.Credential.userName
+import com.mylibrary.network.PreOrderData
 import com.pos.connection.bridge.binder.ECRConstant
 import java.nio.charset.StandardCharsets
+import java.util.*
 import java.util.concurrent.Executors
 
 
@@ -31,8 +48,14 @@ class MainActivity : BaseActivity() {
     private var getLinkUrl = "https://pos.daikou.asia"
     private var webView: WebView? = null
 
-    private val bluetoothList = HashMap<String, String>()
     private var bluetoothAddress = ""
+    private var mAccessToken = ""
+    private var mPreOrderToken = ""
+    private var mPreOutTradeNo = ""
+    private var mPreTransactionId = ""
+
+    private var timerStringOnReceivePOS = arrayOf("")
+    private var isSetTimer = booleanArrayOf(false)
 
     companion object {
         private const val JAVASCRIPT_OBJ = "Android"
@@ -50,7 +73,7 @@ class MainActivity : BaseActivity() {
                     mode = ECRConstant.Mode.WIFI
                 }
                 "usb" -> {
-                    mode = ECRConstant.Mode.USB
+                    mode = ECRConstant.Mode.RS232
                 }
             }
         }
@@ -106,8 +129,20 @@ class MainActivity : BaseActivity() {
                 val results: ResponseData? = Gson().fromJson(data, ResponseData::class.java)
                 if (results != null && !TextUtils.isEmpty(results.mType)) {
                     when (results.mType) {
+                        // Alert from web no item select
+                        "alert" -> {
+                            if (results.mData?.msg != null) {
+                                val mDialog = ShowAlertDialog.newInstance(results.mData.msg)
+                                mDialog.show(supportFragmentManager, "mFragment")
+                            }
+                        }
                         "card_payment" -> {
-                            results.mData?.mTotalPayment?.let { sendPaymentToP2(it) }
+                            if (!BaseApp.connected) {
+                                val mDialog = ShowAlertDialog.newInstance("Please connect device mode first !")
+                                mDialog.show(supportFragmentManager, "mFragment")
+                                return
+                            }
+                            results.mData?.mTotalPayment?.let { submitAccessToken(it) }
                         }
                         "print_invoice" -> {
                             results.mData?.mBase64?.let { displayBitmap(it) }
@@ -179,7 +214,7 @@ class MainActivity : BaseActivity() {
         if (!BaseApp.connected){
             val bundle = Bundle()
             bundle.putString(ECRConstant.Configuration.MODE, mode)
-            bundle.putString(ECRConstant.Configuration.TYPE, if (BaseApp.server) ECRConstant.Type.MASTER else ECRConstant.Type.SLAVE)
+            bundle.putString(ECRConstant.Configuration.TYPE, ECRConstant.Type.SLAVE)
 
             if (mode == ECRConstant.Mode.Bluetooth) {
                 Logger.e(BaseApp.TAG, "bluetoothAddress: $bluetoothAddress")
@@ -212,15 +247,23 @@ class MainActivity : BaseActivity() {
             showToast("$message ($code)")
         }
         ECRHelper.onSendSuccess = {
-
+            Utils.logDebug("jeeeeeeeeeeeeeeeeeeee", "sent success to pos")
         }
         ECRHelper.onSendFailure = { code, message ->
             showToast("$message ($code)")
             runOnUiThread { showConnectStatus() }
         }
         ECRHelper.onECRReceive = { bytes ->
-            val text = String(bytes, StandardCharsets.UTF_8)
-            onCallResponsePaymentToWeb(text)
+            this.runOnUiThread {
+                val s = String(bytes, StandardCharsets.UTF_8)
+                timerStringOnReceivePOS[0] += s
+                if (!isSetTimer[0]) {
+                    isSetTimer[0] = true
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        onCallResponsePaymentToWeb(timerStringOnReceivePOS[0])
+                    }, 3000)
+                }
+            }
         }
 
         ECRHelper.bindECRService()
@@ -231,14 +274,14 @@ class MainActivity : BaseActivity() {
         Utils.logDebug(BaseApp.TAG, text)
     }
 
-    private fun sendPaymentToP2(totalAmount : String) {
+    private fun sendPaymentToP2(totalAmount : String, mPreTransactionId: String) {
         if (!BaseApp.connected) {
             showToast("Please connect device mode !")
             return
         }
 
         Executors.newCachedThreadPool().execute {
-            val text = "CMD:C200|AMT:${totalAmount}|CCY:USD|TRXID:23874567654|TILLID:654345678987668" // test : text will get from web invoice
+            val text = "CMD:C200|AMT:${totalAmount}|CCY:${currency}|TRXID:${mPreTransactionId}|TILLID:${tillId}" // test : text will get from web invoice
             val bytes = text.toByteArray(StandardCharsets.UTF_8)
             Logger.e(BaseApp.TAG, "size: $bytes.size")
             ECRHelper.send(bytes)
@@ -246,103 +289,22 @@ class MainActivity : BaseActivity() {
     }
 
     private fun onCallResponsePaymentToWeb(text : String) {
-        var onResponse = text
+        timerStringOnReceivePOS = arrayOf("")
+        isSetTimer = booleanArrayOf(false)
+
         when {
             text.contains("RESCODE:000") -> {
-                onResponse = "Payment Successfully !"
+                updateFundTransfer(mPreOrderToken, text)
             }
             text.contains("RESCODE:099") -> {
-                onResponse = "Payment Failed !"
+                showToast("Payment Failed !")
+                updateToServer("error")
             }
             text.contains("RESCODE:098") -> {
-                onResponse = "Payment Error !"
+                updateToServer("error")
+                showToast("Payment Error !")
             }
         }
-
-        showToast(onResponse)
-    }
-
-    private fun customOption(mContext : Context) {
-        val binding: SelectConnectionModeLayoutBinding = SelectConnectionModeLayoutBinding.inflate(layoutInflater)
-        val dialog = AlertDialog.Builder(mContext)
-        dialog.setView(binding.root)
-        dialog.setCancelable(false)
-        val alertDialog = dialog.show()
-
-        val mList = switchBluetooth()
-        binding.recyclerView.visibility = View.VISIBLE
-        binding.recyclerView.apply {
-            layoutManager = LinearLayoutManager(mContext)
-            adapter = BluetoothItemAdapter(bluetoothAddress, mList, object : BluetoothItemAdapter.OnClickCallBackLister {
-                @SuppressLint("NotifyDataSetChanged")
-                override fun onClickCallBack(bluetooth: String?) {
-                    bluetoothAddress = bluetoothList[bluetooth] ?: ""
-                    binding.recyclerView.adapter!!.notifyDataSetChanged()
-                }
-            })
-        }
-
-        connectionType = "bluetooth"
-        checkConnectionDevice(connectionType)
-        binding.rOption.setOnCheckedChangeListener { _, checkedId ->
-            if (checkedId == R.id.rBluetooth) {
-                connectionType = "bluetooth"
-                binding.recyclerView.visibility = View.VISIBLE
-            } else if (checkedId == R.id.rUSB) {
-                connectionType = "usb"
-                binding.recyclerView.visibility = View.GONE
-            }
-            checkConnectionDevice(connectionType)
-        }
-
-        binding.txtOk.setOnClickListener {
-            if (connectionType == "bluetooth") {
-                if (bluetoothAddress != ""){
-                    connectWithSATHAPANA()
-                    alertDialog.dismiss()
-                } else {
-                    showToast("Please select device connection")
-                }
-            } else {
-                connectWithSATHAPANA()
-                alertDialog.dismiss()
-            }
-        }
-
-        binding.txtCancel.setOnClickListener {
-            alertDialog.dismiss()
-        }
-
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun switchBluetooth() : List<String> {
-        val bluetoothManager = this.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        val bluetoothAdapter = bluetoothManager.adapter
-        if (bluetoothAdapter != null) {
-            if (bluetoothAdapter.isEnabled) {
-                bluetoothList.clear()
-                val bondedDevices = bluetoothAdapter.bondedDevices
-                if (bondedDevices != null && bondedDevices.size > 0) {
-                    for (bluetoothDevice in bondedDevices) {
-                        val name = bluetoothDevice.name
-                        val address = bluetoothDevice.address
-                        Logger.e(BaseApp.TAG, "name: $name")
-                        Logger.e(BaseApp.TAG, "address: $address")
-                        if (address == "00:11:22:33:44:55") continue
-                        bluetoothList["$name - $address"] = address
-                    }
-                }
-                if (bluetoothList.size <= 0) {
-                    showToast(R.string.message_bluetooth_not_find_bonded)
-                }
-            } else {
-                showToast(R.string.message_bluetooth_disable)
-            }
-        } else {
-            showToast(R.string.message_bluetooth_not_support)
-        }
-        return bluetoothList.keys.toList()
     }
 
     @Deprecated("Deprecated in Java")
@@ -351,6 +313,129 @@ class MainActivity : BaseActivity() {
             webView!!.goBack()
         } else {
             finish()
+        }
+    }
+
+    private fun submitAccessToken(mTotalAmount : String) {
+        KESSMerchantService.submitAccessToken(
+            true,
+            grantType,
+            clientId,
+            clientSecret,
+            userName,
+            password,
+            object : KESSMerchantService.OnCallBackListener {
+                override fun onSuccess(resObj: JsonObject?) {
+                    if(resObj == null) return
+
+                    mAccessToken = resObj.validateSt("access_token")
+                    mPreOutTradeNo = UUID.randomUUID().toString()
+
+                    createPreOrder(mAccessToken, mPreOutTradeNo, mTotalAmount)
+                }
+
+                override fun onSuccess(resObj: PreOrderData?) {}
+
+                override fun onFailed(message: String) {
+                    this@MainActivity.showToast(message)
+                }
+
+            }
+        )
+    }
+
+    private fun createPreOrder(mToken : String, outTradNo: String, mTotalAmount : String) {
+        KESSMerchantService.submitCreatePreOrder(
+            true,
+            mToken,
+            serviceType,
+            signType,
+            sellerCode,
+            currency,
+            mTotalAmount,
+            "Create preOrder fro payment",
+            terminalType,
+            outTradNo,
+            apiSecretKey,
+            sellerCode,
+            object : KESSMerchantService.OnCallBackListener {
+                override fun onSuccess(resObj: JsonObject?) {}
+
+                override fun onSuccess(resObj: PreOrderData?) {
+                    if(resObj == null) return
+
+                    if (resObj.transactionId != null)   mPreTransactionId = resObj.transactionId!!
+                    mPreOrderToken = resObj.token!!
+
+                    // Sent POS
+                    sendPaymentToP2(mTotalAmount, mPreOutTradeNo)
+                }
+
+                override fun onFailed(message: String) {
+                    this@MainActivity.showToast(message)
+                }
+
+            }
+        )
+    }
+
+    private fun updateFundTransfer(mToken : String, bankInfo : String) {
+        val paymentTransactionId = methodDesc + "-" + sellerCode + "_" + mToken
+
+        KESSMerchantService.updateFundTransfer(
+            true,
+            mAccessToken,
+            paymentTransactionId,
+            mToken,
+            signType,
+            methodDesc,
+            bankInfo,
+            apiSecretKey,
+            sellerCode,
+            object : KESSMerchantService.OnCallBackListener {
+                override fun onSuccess(resObj: JsonObject?) {}
+
+                override fun onSuccess(resObj: PreOrderData?) {
+                    updateToServer("success")
+                }
+
+                override fun onFailed(message: String) {
+                    this@MainActivity.showToast(message)
+                }
+
+            }
+        )
+    }
+
+    private fun updateToServer(status : String) {
+        val hashMap = HashMap<String, Any>()
+        hashMap["status"] = status
+        KESSMerchantService.backResponsePaymentSuccess(hashMap, object : KESSMerchantService.OnCallBackListener {
+            override fun onSuccess(resObj: JsonObject?) {
+                showSuccess(this@MainActivity,"Payment Successfully !")
+            }
+
+            override fun onSuccess(resObj: PreOrderData?) {}
+
+            override fun onFailed(message: String) {
+                this@MainActivity.showToast(message)
+            }
+
+        })
+    }
+
+    private fun showSuccess(context: Context?, text: String? ) {
+        var mText = text
+        try {
+            mText = mText?.replace("\r\n".toRegex(), "<br />") ?: ""
+            var alertDialog: SweetAlertDialog ?= null
+            alertDialog = SweetAlertDialog(context, SweetAlertDialog.SUCCESS_TYPE)
+                    .setContentText(mText)
+                    .setConfirmClickListener { alertDialog!!.dismiss() }
+            alertDialog.setCanceledOnTouchOutside(false)
+            alertDialog.show()
+        } catch (ex: Exception) {
+            ex.printStackTrace()
         }
     }
 

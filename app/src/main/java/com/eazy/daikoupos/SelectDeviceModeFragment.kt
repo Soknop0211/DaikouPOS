@@ -3,12 +3,15 @@ package com.eazy.daikoupos
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.content.DialogInterface
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.eazy.daikoupos.BaseApp.Companion.connectionType
 import com.eazy.daikoupos.databinding.SelectConnectionModeLayoutBinding
 import com.eazy.daikoupos.extension.showToast
 import com.eazy.daikoupos.utils.payment.Logger
@@ -18,7 +21,6 @@ class SelectDeviceModeFragment : DialogFragment() {
     private val bluetoothList = HashMap<String, String>()
     private var bluetoothAddress = ""
     private var mBluetoothAddress = ""
-    private var connectionType = "bluetooth"
     private lateinit var onCallBackListener: OnCallBackListener
     private lateinit var binding: SelectConnectionModeLayoutBinding
     private var mList : List<String> = ArrayList()
@@ -26,6 +28,7 @@ class SelectDeviceModeFragment : DialogFragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setStyle(STYLE_NORMAL, R.style.AlertShape)
+        isCancelable = false
     }
 
 
@@ -36,6 +39,14 @@ class SelectDeviceModeFragment : DialogFragment() {
         initAdapter()
 
         MainActivity.checkConnectionDevice(connectionType)
+        if (connectionType.equals("bluetooth", true)) {
+            binding.rBluetooth.isChecked = true
+        } else if (connectionType.equals("usb", true)) {
+            binding.rUSB.isChecked = true
+            binding.recyclerView.visibility = View.GONE
+        } else {
+            binding.rBluetooth.isChecked = true
+        }
 
         binding.rOption.setOnCheckedChangeListener { _, checkedId ->
             if (checkedId == R.id.rBluetooth) {
@@ -44,6 +55,7 @@ class SelectDeviceModeFragment : DialogFragment() {
             } else if (checkedId == R.id.rUSB) {
                 connectionType = "usb"
                 binding.recyclerView.visibility = View.GONE
+                binding.notFoundBlTv.visibility = View.GONE
             }
             MainActivity.checkConnectionDevice(connectionType)
         }

@@ -17,6 +17,8 @@ class BaseApp : Application() {
 
         var server = false // Device Type can have Service(true) and Client(false)
         var connected: Boolean = false
+
+        var connectionType = "bluetooth"
     }
 
     override fun onCreate() {

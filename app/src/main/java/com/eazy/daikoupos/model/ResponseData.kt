@@ -11,6 +11,7 @@ data class ResponseData(
 
 data class Data (@SerializedName("base64")
                  val mBase64: String? = null,
+                 val msg: String? = null,
                  @SerializedName("total_payment")
                  val mTotalPayment: String? = null
 ): java.io.Serializable

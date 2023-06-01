@@ -12,4 +12,8 @@
     <string name="connected">connected</string>
     <string name="connecting">connecting</string>
     <string name="disconnected">disconnected</string>
+    <string name="please_select_device_mode">Please select device mode :</string>
+    <string name="bluetooth">Bluetooth</string>
+    <string name="usb">USB</string>
+    <string name="connect">Connect</string>
 </resources>

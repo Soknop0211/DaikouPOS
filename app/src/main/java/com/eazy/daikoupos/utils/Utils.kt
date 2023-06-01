@@ -7,6 +7,8 @@ import android.os.StrictMode
 import android.util.Base64
 import android.util.Log
 import com.eazy.daikoupos.BuildConfig
+import com.google.gson.Gson
+import com.google.gson.JsonObject
 import java.io.ByteArrayOutputStream
 import java.net.URL
 
@@ -43,20 +45,6 @@ class Utils {
                 e.printStackTrace()
             }
             return base64
-        }
-
-        fun scaleImage(bitmap1: Bitmap): Bitmap? {
-            val width = bitmap1.width
-            val height = bitmap1.height
-            // 设置想要的大小
-            val newWidth = (width / 8 + 1) * 8
-            // 计算缩放比例
-            val scaleWidth = newWidth.toFloat() / width
-            // 取得想要缩放的matrix参数
-            val matrix = Matrix()
-            matrix.postScale(scaleWidth, 1f)
-            // 得到新的图片
-            return Bitmap.createBitmap(bitmap1, 0, 0, width, height, matrix, true)
         }
     }
 }

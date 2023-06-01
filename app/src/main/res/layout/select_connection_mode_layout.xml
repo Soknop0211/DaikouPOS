@@ -8,7 +8,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Please select device mode :"
+        android:text="@string/please_select_device_mode"
         android:layout_margin="10dp"
         android:textColor="@color/black"
         android:textStyle="bold"
@@ -24,7 +24,7 @@
             android:id="@+id/rBluetooth"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Bluetooth"
+            android:text="@string/bluetooth"
             android:checked="true"/>
 
         <RadioButton
@@ -32,7 +32,7 @@
             android:id="@+id/rUSB"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="USB"
+            android:text="@string/usb"
             android:checked="false" />
 
     </RadioGroup>
@@ -47,8 +47,6 @@
         android:id="@+id/notFoundBlTv"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minHeight="100dp"
-        android:gravity="center"
         android:text="@string/message_bluetooth_not_find_bonded"
         android:layout_margin="10dp"
         android:textSize="16sp" />
@@ -68,6 +66,7 @@
             android:gravity="center"
             android:elevation="1dp"
             android:padding="10dp"
+            android:textStyle="bold"
             android:layout_marginHorizontal="10dp"
             android:textColor="@color/black" />
 
@@ -75,14 +74,14 @@
             android:id="@+id/txtOk"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/dialog_ok"
+            android:text="@string/connect"
             android:textAllCaps="false"
             android:gravity="center"
             android:elevation="1dp"
             android:padding="10dp"
             android:textStyle="bold"
             android:textColor="@color/colorPrimary"
-            android:layout_marginEnd="25dp"
+            android:layout_marginEnd="20dp"
             android:layout_marginStart="10dp"/>
 
     </LinearLayout>

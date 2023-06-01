@@ -14,7 +14,6 @@ import com.eazy.daikoupos.utils.SunmiPrintHelper
 open class BaseActivity : AppCompatActivity() {
 
     var handler: Handler? = null
-    var connectionType = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,12 +45,13 @@ open class BaseActivity : AppCompatActivity() {
         }
 
         SunmiPrintHelper.getInstance().deInitSunmiPrinterService(this)
+
+        ECRHelper.disconnect()
+        ECRHelper.unregisterECRListener()
     }
 
     private fun initPrinterStyle() {
         SunmiPrintHelper.getInstance().initPrinter()
-
-        ECRHelper.disconnect()
     }
 
 }
