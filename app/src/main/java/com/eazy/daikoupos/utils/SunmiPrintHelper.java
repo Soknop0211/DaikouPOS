@@ -136,7 +136,7 @@ public class SunmiPrintHelper {
     /**
      *  Printer cuts paper and throws exception on machines without a cutter
      */
-    public void cutpaper(){
+    public void cutPaper(){
         if(sunmiPrinterService == null){
             //TODO Service disconnection processing
             return;
@@ -416,17 +416,6 @@ public class SunmiPrintHelper {
 
         try {
             sunmiPrinterService.printBitmap(bitmap, null);
-//            if(orientation == 0){
-//                sunmiPrinterService.printBitmap(bitmap, null);
-//                sunmiPrinterService.printText("横向排列\n", null);
-//                sunmiPrinterService.printBitmap(bitmap, null);
-//                sunmiPrinterService.printText("横向排列\n", null);
-//            }else{
-//                sunmiPrinterService.printBitmap(bitmap, null);
-//                sunmiPrinterService.printText("\n纵向排列\n", null);
-//                sunmiPrinterService.printBitmap(bitmap, null);
-//                sunmiPrinterService.printText("\n纵向排列\n", null);
-//            }
         } catch (RemoteException e) {
             e.printStackTrace();
         }

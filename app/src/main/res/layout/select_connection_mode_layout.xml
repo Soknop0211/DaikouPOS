@@ -66,7 +66,6 @@
             android:gravity="center"
             android:elevation="1dp"
             android:padding="10dp"
-            android:textStyle="bold"
             android:layout_marginHorizontal="10dp"
             android:textColor="@color/black" />
 
@@ -81,7 +80,7 @@
             android:padding="10dp"
             android:textStyle="bold"
             android:textColor="@color/colorPrimary"
-            android:layout_marginEnd="20dp"
+            android:layout_marginEnd="10dp"
             android:layout_marginStart="10dp"/>
 
     </LinearLayout>

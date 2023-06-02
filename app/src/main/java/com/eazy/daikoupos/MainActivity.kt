@@ -18,7 +18,6 @@ import com.eazy.daikoupos.model.ResponseData
 import com.eazy.daikoupos.utils.ShowAlertDialog
 import com.eazy.daikoupos.utils.SunmiPrintHelper
 import com.eazy.daikoupos.utils.Utils
-import com.eazy.daikoupos.utils.payment.Logger
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.mylibrary.KESSMerchantService
@@ -30,7 +29,6 @@ import com.mylibrary.network.Credential.grantType
 import com.mylibrary.network.Credential.methodDesc
 import com.mylibrary.network.Credential.password
 import com.mylibrary.network.Credential.sellerCode
-import com.mylibrary.network.Credential.servicePartnerConfirmFunTransfer
 import com.mylibrary.network.Credential.serviceType
 import com.mylibrary.network.Credential.signType
 import com.mylibrary.network.Credential.terminalType
@@ -204,8 +202,8 @@ class MainActivity : BaseActivity() {
             sunmiPrintHelper.sunmiPrinterService.lineWrap(0, null)
             sunmiPrintHelper.sunmiPrinterService.lineWrap(1, null)
             sunmiPrintHelper.sunmiPrinterService.lineWrap(0, null)
-            sunmiPrintHelper.sunmiPrinterService.cutPaper( null)
         }
+        sunmiPrintHelper.cutPaper()
         sunmiPrintHelper.feedPaper()
     }
 
@@ -217,12 +215,15 @@ class MainActivity : BaseActivity() {
             bundle.putString(ECRConstant.Configuration.TYPE, ECRConstant.Type.SLAVE)
 
             if (mode == ECRConstant.Mode.Bluetooth) {
-                Logger.e(BaseApp.TAG, "bluetoothAddress: $bluetoothAddress")
+                Utils.logDebug(BaseApp.TAG, "bluetoothAddress: $bluetoothAddress")
                 bundle.putString(ECRConstant.Configuration.BLUETOOTH_MAC_ADDRESS, bluetoothAddress)
             }
 
             val ecrHelper = ECRHelper
             ecrHelper.connect(bundle)
+        } else {
+            ECRHelper.disconnect()
+            connectWithSATHAPANA()
         }
     }
 
@@ -235,7 +236,10 @@ class MainActivity : BaseActivity() {
             showToast(R.string.message_bind_ecr_service)
         }
         ECRHelper.onECRConnected = {
-            runOnUiThread { showConnectStatus() }
+            runOnUiThread {
+               showToast(mode + " "+ resources.getString(R.string.connected))
+                showConnectStatus()
+            }
         }
         ECRHelper.onECRDisconnected = { code, message ->
             when(code){
@@ -247,7 +251,7 @@ class MainActivity : BaseActivity() {
             showToast("$message ($code)")
         }
         ECRHelper.onSendSuccess = {
-            Utils.logDebug("jeeeeeeeeeeeeeeeeeeee", "sent success to pos")
+            // Sent To POS
         }
         ECRHelper.onSendFailure = { code, message ->
             showToast("$message ($code)")
@@ -283,7 +287,7 @@ class MainActivity : BaseActivity() {
         Executors.newCachedThreadPool().execute {
             val text = "CMD:C200|AMT:${totalAmount}|CCY:${currency}|TRXID:${mPreTransactionId}|TILLID:${tillId}" // test : text will get from web invoice
             val bytes = text.toByteArray(StandardCharsets.UTF_8)
-            Logger.e(BaseApp.TAG, "size: $bytes.size")
+            Utils.logDebug(BaseApp.TAG, "size: $bytes.size")
             ECRHelper.send(bytes)
         }
     }
@@ -418,7 +422,8 @@ class MainActivity : BaseActivity() {
             override fun onSuccess(resObj: PreOrderData?) {}
 
             override fun onFailed(message: String) {
-                this@MainActivity.showToast(message)
+                // this@MainActivity.showToast(message)
+                showSuccess(this@MainActivity,"Payment Successfully !")
             }
 
         })

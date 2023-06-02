@@ -66,7 +66,11 @@ class SelectDeviceModeFragment : DialogFragment() {
                     onCallBackListener.onCallBack(bluetoothAddress)
                     dismiss()
                 } else {
-                    requireContext().showToast("Please select bluetooth address connection .")
+                    if (mList.isNotEmpty()) {
+                        requireContext().showToast("Please select bluetooth address connection .")
+                    } else {
+                        requireContext().showToast("Not found bluetooth address connection .")
+                    }
                 }
             } else {
                 onCallBackListener.onCallBack("")
