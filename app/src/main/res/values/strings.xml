@@ -10,10 +10,11 @@
     <string name="dialog_select_bluetooth">Please select a bluetooth device</string>
 
     <string name="connected">Connected</string>
-    <string name="connecting">connecting</string>
-    <string name="disconnected">disconnected</string>
+    <string name="disconnected">Disconnected</string>
     <string name="please_select_device_mode">Please select device mode</string>
     <string name="bluetooth">Bluetooth</string>
     <string name="usb">USB</string>
     <string name="connect">Connect</string>
+    <string name="wifi">Wifi</string>
+    <string name="alert">Alert</string>
 </resources>

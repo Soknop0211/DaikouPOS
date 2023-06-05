@@ -29,6 +29,13 @@
 
         <RadioButton
             android:layout_marginHorizontal="10dp"
+            android:id="@+id/rWifi"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/wifi"/>
+
+        <RadioButton
+            android:layout_marginHorizontal="10dp"
             android:id="@+id/rUSB"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -50,6 +57,31 @@
         android:text="@string/message_bluetooth_not_find_bonded"
         android:layout_margin="10dp"
         android:textSize="16sp" />
+
+    <LinearLayout
+        android:visibility="gone"
+        android:id="@+id/wifiLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <EditText
+            android:id="@+id/ip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:digits="0123456789."
+            android:hint="IP" />
+
+        <EditText
+            android:id="@+id/port"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:hint="PORT" />
+
+    </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"

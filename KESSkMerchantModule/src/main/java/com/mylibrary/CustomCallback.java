@@ -72,8 +72,8 @@ public class CustomCallback implements Callback<JsonElement> {
                         message = jsonOb.getString("error");
                         customResponseListener.onError(message,response.code());
                     }
-                    else if (jsonOb.has("message")){
-                        message = jsonOb.getString("message");
+                    else if (jsonOb.has("error_des")){
+                        message = jsonOb.getString("error_des");
                         customResponseListener.onError(message,response.code());
                     }
                 } catch (JSONException e) {

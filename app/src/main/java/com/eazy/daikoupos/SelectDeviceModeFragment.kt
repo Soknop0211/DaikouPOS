@@ -5,16 +5,20 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.DialogInterface
 import android.os.Bundle
+import android.text.TextUtils
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.eazy.daikoupos.BaseApp.Companion.connectionType
 import com.eazy.daikoupos.databinding.SelectConnectionModeLayoutBinding
+import com.eazy.daikoupos.ecr.ECRHelper
 import com.eazy.daikoupos.extension.showToast
 import com.eazy.daikoupos.utils.payment.Logger
+import com.pos.connection.bridge.binder.ECRConstant
 
 class SelectDeviceModeFragment : DialogFragment() {
 
@@ -41,21 +45,39 @@ class SelectDeviceModeFragment : DialogFragment() {
         MainActivity.checkConnectionDevice(connectionType)
         if (connectionType.equals("bluetooth", true)) {
             binding.rBluetooth.isChecked = true
+            binding.wifiLayout.visibility = View.GONE
         } else if (connectionType.equals("usb", true)) {
             binding.rUSB.isChecked = true
             binding.recyclerView.visibility = View.GONE
+            binding.wifiLayout.visibility = View.GONE
+        } else if (connectionType.equals("wifi", true)){
+            binding.rWifi.isChecked = true
+            binding.recyclerView.visibility = View.GONE
+            binding.wifiLayout.visibility = View.VISIBLE
         } else {
             binding.rBluetooth.isChecked = true
         }
 
         binding.rOption.setOnCheckedChangeListener { _, checkedId ->
-            if (checkedId == R.id.rBluetooth) {
-                connectionType = "bluetooth"
-                binding.recyclerView.visibility = View.VISIBLE
-            } else if (checkedId == R.id.rUSB) {
-                connectionType = "usb"
-                binding.recyclerView.visibility = View.GONE
-                binding.notFoundBlTv.visibility = View.GONE
+            when (checkedId) {
+                R.id.rBluetooth -> {
+                    connectionType = "bluetooth"
+                    binding.notFoundBlTv.visibility = if (bluetoothList.size > 0) View.GONE else View.VISIBLE
+                    binding.recyclerView.visibility = if (bluetoothList.size > 0) View.VISIBLE else View.GONE
+                    binding.wifiLayout.visibility = View.GONE
+                }
+                R.id.rUSB -> {
+                    connectionType = "usb"
+                    binding.wifiLayout.visibility = View.GONE
+                    binding.recyclerView.visibility = View.GONE
+                    binding.notFoundBlTv.visibility = View.GONE
+                }
+                R.id.rWifi -> {
+                    connectionType = "wifi"
+                    binding.wifiLayout.visibility = View.VISIBLE
+                    binding.recyclerView.visibility = View.GONE
+                    binding.notFoundBlTv.visibility = View.GONE
+                }
             }
             MainActivity.checkConnectionDevice(connectionType)
         }
@@ -72,7 +94,15 @@ class SelectDeviceModeFragment : DialogFragment() {
                         requireContext().showToast("Not found bluetooth address connection .")
                     }
                 }
-            } else {
+            } else if (connectionType == "wifi") {
+                if (TextUtils.isEmpty(binding.port.text.toString()) || TextUtils.isEmpty(binding.ip.text.toString())) {
+                    requireContext().showToast("Please input port and ip")
+                } else {
+                    onCallBackListener.onCallBack(binding.ip.text.toString(), binding.port.text.toString())
+                    dismiss()
+                }
+            }
+            else {
                 onCallBackListener.onCallBack("")
                 dismiss()
             }
@@ -140,5 +170,6 @@ class SelectDeviceModeFragment : DialogFragment() {
 
     interface OnCallBackListener {
         fun onCallBack(bluetoothAdd : String)
+        fun onCallBack(ip : String, port : String)
     }
 }

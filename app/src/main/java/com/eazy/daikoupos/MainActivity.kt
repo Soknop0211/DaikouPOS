@@ -130,14 +130,13 @@ class MainActivity : BaseActivity() {
                         // Alert from web no item select
                         "alert" -> {
                             if (results.mData?.msg != null) {
-                                val mDialog = ShowAlertDialog.newInstance(results.mData.msg)
+                                val mDialog = ShowAlertDialog.newInstance("alert", results.mData.msg)
                                 mDialog.show(supportFragmentManager, "mFragment")
                             }
                         }
                         "card_payment" -> {
                             if (!BaseApp.connected) {
-                                val mDialog = ShowAlertDialog.newInstance("Please connect device mode first !")
-                                mDialog.show(supportFragmentManager, "mFragment")
+                                alertPopup("no_connection", "alert", "Please connect device mode first !")
                                 return
                             }
                             results.mData?.mTotalPayment?.let { submitAccessToken(it) }
@@ -152,13 +151,17 @@ class MainActivity : BaseActivity() {
                                     bluetoothAddress = bluetoothAdd
                                     if (connectionType == "bluetooth") {
                                         if (bluetoothAddress != ""){
-                                            connectWithSATHAPANA()
+                                            connectWithSATHAPANA("", "")
                                         } else {
                                             showToast("Please select bluetooth address connection .")
                                         }
                                     } else {
-                                        connectWithSATHAPANA()
+                                        connectWithSATHAPANA("", "")
                                     }
+                                }
+
+                                override fun onCallBack(ip: String, port: String) {
+                                    connectWithSATHAPANA(ip, port)
                                 }
 
                             })
@@ -192,6 +195,7 @@ class MainActivity : BaseActivity() {
 
     }
 
+    // Printer
     private fun displayBitmap(imgBase64: String?) {
         bitmap = imgBase64?.let { it1 -> Utils.passImageToAndroid(it1) }
 
@@ -208,7 +212,7 @@ class MainActivity : BaseActivity() {
     }
 
     @SuppressLint("MissingPermission")
-    private fun connectWithSATHAPANA() {
+    private fun connectWithSATHAPANA(ip: String, port: String) {
         if (!BaseApp.connected){
             val bundle = Bundle()
             bundle.putString(ECRConstant.Configuration.MODE, mode)
@@ -218,12 +222,15 @@ class MainActivity : BaseActivity() {
                 Utils.logDebug(BaseApp.TAG, "bluetoothAddress: $bluetoothAddress")
                 bundle.putString(ECRConstant.Configuration.BLUETOOTH_MAC_ADDRESS, bluetoothAddress)
             }
+            if (mode == ECRConstant.Mode.WIFI) {
+                bundle.putInt(ECRConstant.Configuration.WIFI_PORT, port.toInt())
+                bundle.putString(ECRConstant.Configuration.WIFI_ADDRESS, ip)
+            }
 
             val ecrHelper = ECRHelper
             ecrHelper.connect(bundle)
         } else {
-            ECRHelper.disconnect()
-            connectWithSATHAPANA()
+            showToast(resources.getString(R.string.message_select_connect))
         }
     }
 
@@ -243,9 +250,7 @@ class MainActivity : BaseActivity() {
         }
         ECRHelper.onECRDisconnected = { code, message ->
             when(code){
-                -7006 -> {
-
-                }
+                -7006 -> { }
             }
             runOnUiThread { showConnectStatus() }
             showToast("$message ($code)")
@@ -280,7 +285,7 @@ class MainActivity : BaseActivity() {
 
     private fun sendPaymentToP2(totalAmount : String, mPreTransactionId: String) {
         if (!BaseApp.connected) {
-            showToast("Please connect device mode !")
+            showToast(resources.getString(R.string.please_select_device_mode))
             return
         }
 
@@ -301,12 +306,10 @@ class MainActivity : BaseActivity() {
                 updateFundTransfer(mPreOrderToken, text)
             }
             text.contains("RESCODE:099") -> {
-                showToast("Payment Failed !")
-                updateToServer("error")
+                alertPopup("payment_error", "Error", "Payment Error !")
             }
             text.contains("RESCODE:098") -> {
-                updateToServer("error")
-                showToast("Payment Error !")
+                alertPopup("payment_error", "Error", "Payment Error !")
             }
         }
     }
@@ -342,6 +345,7 @@ class MainActivity : BaseActivity() {
 
                 override fun onFailed(message: String) {
                     this@MainActivity.showToast(message)
+                    alertPopup("payment_error", "Error", "Payment Error !")
                 }
 
             }
@@ -368,8 +372,7 @@ class MainActivity : BaseActivity() {
                 override fun onSuccess(resObj: PreOrderData?) {
                     if(resObj == null) return
 
-                    if (resObj.transactionId != null)   mPreTransactionId = resObj.transactionId!!
-                    mPreOrderToken = resObj.token!!
+                    if (resObj.token != null) mPreOrderToken = resObj.token!!
 
                     // Sent POS
                     sendPaymentToP2(mTotalAmount, mPreOutTradeNo)
@@ -377,6 +380,7 @@ class MainActivity : BaseActivity() {
 
                 override fun onFailed(message: String) {
                     this@MainActivity.showToast(message)
+                    alertPopup("payment_error", "Error", "Payment Error !")
                 }
 
             }
@@ -400,7 +404,8 @@ class MainActivity : BaseActivity() {
                 override fun onSuccess(resObj: JsonObject?) {}
 
                 override fun onSuccess(resObj: PreOrderData?) {
-                    updateToServer("success")
+                    if (resObj?.transactionId != null)   mPreTransactionId = resObj.transactionId!!
+                    alertPopup("payment_success", "Success", "Payment Successfully !")
                 }
 
                 override fun onFailed(message: String) {
@@ -411,37 +416,24 @@ class MainActivity : BaseActivity() {
         )
     }
 
-    private fun updateToServer(status : String) {
-        val hashMap = HashMap<String, Any>()
-        hashMap["status"] = status
-        KESSMerchantService.backResponsePaymentSuccess(hashMap, object : KESSMerchantService.OnCallBackListener {
-            override fun onSuccess(resObj: JsonObject?) {
-                showSuccess(this@MainActivity,"Payment Successfully !")
-            }
-
-            override fun onSuccess(resObj: PreOrderData?) {}
-
-            override fun onFailed(message: String) {
-                // this@MainActivity.showToast(message)
-                showSuccess(this@MainActivity,"Payment Successfully !")
+    private fun alertPopup(status : String, title : String, message : String) {
+        val mDialog = ShowAlertDialog.newInstance(title, message)
+        mDialog.initListener(object : ShowAlertDialog.OnCallBackListener {
+            override fun onCallBack(bluetoothAdd: String) {
+                val jsonObject = JsonObject()
+                jsonObject.addProperty("status", status)
+                val jsonSt = jsonObject.toString()
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
+                    webView?.evaluateJavascript("javascript: GetNotificationFromAndroid($jsonSt)") { data ->
+                        Utils.logDebug("Jjeeeeeeeeeeeee", "")
+                    }
+                } else {
+                    webView?.loadUrl("javascript:GetNotificationFromAndroid('Javascript function in webview')")
+                }
             }
 
         })
-    }
-
-    private fun showSuccess(context: Context?, text: String? ) {
-        var mText = text
-        try {
-            mText = mText?.replace("\r\n".toRegex(), "<br />") ?: ""
-            var alertDialog: SweetAlertDialog ?= null
-            alertDialog = SweetAlertDialog(context, SweetAlertDialog.SUCCESS_TYPE)
-                    .setContentText(mText)
-                    .setConfirmClickListener { alertDialog!!.dismiss() }
-            alertDialog.setCanceledOnTouchOutside(false)
-            alertDialog.show()
-        } catch (ex: Exception) {
-            ex.printStackTrace()
-        }
+        mDialog.show(supportFragmentManager, "mFragment")
     }
 
 }
